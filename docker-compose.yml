@@ -1,0 +1,39 @@
+# Prodexa - Docker Compose for Production
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      target: production
+    container_name: prodexa-api
+    restart: unless-stopped
+    ports:
+      - '5000:5000'
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb+srv://${MONGODB_USER}:${MONGODB_PASS}@cluster0.xxxxx.mongodb.net/prodexa?retryWrites=true&w=majority
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - REDIS_URL=redis://redis:6379
+      - FRONTEND_URL=${FRONTEND_URL}
+    depends_on:
+      - redis
+    volumes:
+      - uploads:/app/uploads
+      - logs:/app/logs
+
+  redis:
+    image: redis:7-alpine
+    container_name: prodexa-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+
+volumes:
+  uploads:
+  logs:
+  redis-data:
