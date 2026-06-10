@@ -10,7 +10,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const mongoSanitize = require('mongo-sanitize');
+const mongoSanitize = require('express-mongo-sanitize');
 const swaggerUi = require('swagger-ui-express');
 
 const connectDB = require('./config/db');
@@ -48,12 +48,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Data sanitization against NoSQL injection
-app.use((req, res, next) => {
-  if (req.body) req.body = mongoSanitize.sanitize(req.body);
-  if (req.query) req.query = mongoSanitize.sanitize(req.query);
-  if (req.params) req.params = mongoSanitize.sanitize(req.params);
-  next();
-});
+app.use(mongoSanitize());
 
 // Request logging
 app.use((req, res, next) => {
