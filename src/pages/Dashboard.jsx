@@ -5,11 +5,12 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { formatDate, formatDateTime } from '../utils/helpers';
-import { FiCheckSquare, FiClock, FiCalendar, FiTrendingUp, FiPlus, FiFileText, FiTarget, FiArrowRight } from 'react-icons/fi';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { FiCheckSquare, FiClock, FiCalendar, FiTrendingUp, FiPlus, FiFileText, FiTarget, FiArrowRight, FiAlertCircle } from 'react-icons/fi';
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { getStatistics, getRecentActivities, tasks } = useData();
+  const { getStatistics, getRecentActivities, tasks, loading, error, dashboardStats } = useData();
   const stats = getStatistics();
   const activities = getRecentActivities();
 
@@ -21,11 +22,14 @@ export default function Dashboard() {
     return 'Good Evening';
   };
 
+  // Use dashboard stats from API if available, fall back to local calculation
+  const displayStats = dashboardStats || stats;
+
   // Stat cards configuration
   const statCards = [
     {
       label: 'Total Tasks',
-      value: stats.totalTasks,
+      value: displayStats.tasks?.total ?? displayStats.totalTasks,
       icon: FiCheckSquare,
       color: 'bg-blue-500',
       bg: 'bg-blue-50 dark:bg-blue-900/20',
@@ -33,7 +37,7 @@ export default function Dashboard() {
     },
     {
       label: 'Completed',
-      value: stats.completedTasks,
+      value: displayStats.tasks?.completed ?? displayStats.completedTasks,
       icon: FiTrendingUp,
       color: 'bg-green-500',
       bg: 'bg-green-50 dark:bg-green-900/20',
@@ -41,7 +45,7 @@ export default function Dashboard() {
     },
     {
       label: 'Pending',
-      value: stats.pendingTasks,
+      value: displayStats.tasks?.pending ?? displayStats.pendingTasks,
       icon: FiClock,
       color: 'bg-yellow-500',
       bg: 'bg-yellow-50 dark:bg-yellow-900/20',
@@ -49,7 +53,7 @@ export default function Dashboard() {
     },
     {
       label: 'Attendance',
-      value: `${stats.attendancePercentage}%`,
+      value: `${displayStats.attendance?.percentage ?? displayStats.attendancePercentage}%`,
       icon: FiCalendar,
       color: 'bg-purple-500',
       bg: 'bg-purple-50 dark:bg-purple-900/20',
@@ -66,7 +70,7 @@ export default function Dashboard() {
   ];
 
   // Upcoming tasks (due soon, not completed)
-  const upcomingTasks = tasks
+  const upcomingTasks = (dashboardStats?.stats?.upcomingTasks || tasks)
     .filter(t => t.status !== 'completed')
     .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
     .slice(0, 4);
@@ -91,109 +95,122 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((card, index) => (
-          <div
-            key={index}
-            className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className={`w-10 h-10 ${card.bg} rounded-lg flex items-center justify-center`}>
-                <card.icon className={`text-lg ${card.textColor}`} />
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <LoadingSpinner />
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 flex items-center gap-3">
+          <FiAlertCircle className="text-red-500 text-xl flex-shrink-0" />
+          <p className="text-red-700 dark:text-red-400">{error}</p>
+        </div>
+      ) : (
+        <>
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {statCards.map((card, index) => (
+              <div
+                key={index}
+                className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className={`w-10 h-10 ${card.bg} rounded-lg flex items-center justify-center`}>
+                    <card.icon className={`text-lg ${card.textColor}`} />
+                  </div>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{card.value}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{card.label}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Upcoming Tasks */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+                <h3 className="font-semibold text-gray-900 dark:text-white">Upcoming Tasks</h3>
+                <Link to="/tasks" className="text-sm text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1">
+                  View All <FiArrowRight />
+                </Link>
+              </div>
+              <div className="p-4">
+                {upcomingTasks.length > 0 ? (
+                  <div className="space-y-3">
+                    {upcomingTasks.map(task => (
+                      <div key={task._id || task.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                        <div className={`w-2 h-2 rounded-full ${
+                          task.priority === 'high' ? 'bg-red-500' :
+                          task.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Due: {formatDate(task.dueDate)}</p>
+                        </div>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          task.status === 'in-progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                          'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                        }`}>
+                          {task.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-4">No upcoming tasks. Start by creating one!</p>
+                )}
               </div>
             </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{card.value}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{card.label}</p>
-          </div>
-        ))}
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Upcoming Tasks */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Upcoming Tasks</h3>
-            <Link to="/tasks" className="text-sm text-primary-600 dark:text-primary-400 hover:underline flex items-center gap-1">
-              View All <FiArrowRight />
-            </Link>
-          </div>
-          <div className="p-4">
-            {upcomingTasks.length > 0 ? (
-              <div className="space-y-3">
-                {upcomingTasks.map(task => (
-                  <div key={task.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                    <div className={`w-2 h-2 rounded-full ${
-                      task.priority === 'high' ? 'bg-red-500' :
-                      task.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-                    }`} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Due: {formatDate(task.dueDate)}</p>
-                    </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      task.status === 'in-progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                      'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                    }`}>
-                      {task.status}
-                    </span>
+            {/* Recent Activities */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+              <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+                <h3 className="font-semibold text-gray-900 dark:text-white">Recent Activities</h3>
+              </div>
+              <div className="p-4">
+                {activities.length > 0 ? (
+                  <div className="space-y-3">
+                    {activities.map((activity, index) => (
+                      <div key={activity.id || index} className="flex items-start gap-3 p-2">
+                        <div className={`w-2 h-2 rounded-full mt-2 ${
+                          activity.type === 'task_created' ? 'bg-blue-500' :
+                          activity.type === 'attendance' ? 'bg-green-500' : 'bg-purple-500'
+                        }`} />
+                        <div className="flex-1">
+                          <p className="text-sm text-gray-700 dark:text-gray-300">{activity.title}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {formatDateTime(activity.timestamp)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-4">No recent activities yet</p>
+                )}
               </div>
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-4">No tasks available</p>
-            )}
+            </div>
           </div>
-        </div>
 
-        {/* Recent Activities */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Recent Activities</h3>
-          </div>
-          <div className="p-4">
-            {activities.length > 0 ? (
-              <div className="space-y-3">
-                {activities.map((activity, index) => (
-                  <div key={activity.id || index} className="flex items-start gap-3 p-2">
-                    <div className={`w-2 h-2 rounded-full mt-2 ${
-                      activity.type === 'task_created' ? 'bg-blue-500' :
-                      activity.type === 'attendance' ? 'bg-green-500' : 'bg-purple-500'
-                    }`} />
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-700 dark:text-gray-300">{activity.title}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        {formatDateTime(activity.timestamp)}
-                      </p>
-                    </div>
+          {/* Quick Actions */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+            <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {quickActions.map((action, index) => (
+                <Link
+                  key={index}
+                  to={action.path}
+                  className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-primary-200 dark:hover:border-primary-700 hover:shadow-md transition-all group"
+                >
+                  <div className={`w-12 h-12 ${action.color} rounded-xl flex items-center justify-center text-white group-hover:scale-110 transition-transform`}>
+                    <action.icon className="text-xl" />
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-4">No recent activities</p>
-            )}
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{action.label}</span>
+                </Link>
+              ))}
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-        <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {quickActions.map((action, index) => (
-            <Link
-              key={index}
-              to={action.path}
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-primary-200 dark:hover:border-primary-700 hover:shadow-md transition-all group"
-            >
-              <div className={`w-12 h-12 ${action.color} rounded-xl flex items-center justify-center text-white group-hover:scale-110 transition-transform`}>
-                <action.icon className="text-xl" />
-              </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{action.label}</span>
-            </Link>
-          ))}
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

@@ -5,17 +5,19 @@ import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
 import Modal from '../components/Modal';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { formatDate, getPriorityColor, getStatusColor, getTodayDate, isPastDate } from '../utils/helpers';
-import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiCheckCircle, FiCircle, FiFilter, FiCheckSquare } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiCheckCircle, FiCircle, FiFilter, FiCheckSquare, FiAlertCircle } from 'react-icons/fi';
 
 export default function Tasks() {
-  const { tasks, addTask, updateTask, deleteTask, toggleTaskStatus } = useData();
+  const { tasks, addTask, updateTask, deleteTask, toggleTaskStatus, loading, error } = useData();
   const { confirm } = useConfirm();
   const [showModal, setShowModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -46,23 +48,30 @@ export default function Tasks() {
       title: task.title,
       description: task.description,
       priority: task.priority,
-      dueDate: task.dueDate,
+      dueDate: task.dueDate ? task.dueDate.split('T')[0] : getTodayDate(),
       category: task.category,
     });
     setShowModal(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.title.trim()) return;
+    if (!formData.title.trim() || submitting) return;
 
-    if (editingTask) {
-      updateTask(editingTask.id, formData);
-    } else {
-      addTask(formData);
+    try {
+      setSubmitting(true);
+      if (editingTask) {
+        await updateTask(editingTask._id, formData);
+      } else {
+        await addTask(formData);
+      }
+      setShowModal(false);
+      resetForm();
+    } catch (err) {
+      console.error('Failed to save task:', err);
+    } finally {
+      setSubmitting(false);
     }
-    setShowModal(false);
-    resetForm();
   };
 
   const handleDelete = async (taskId) => {
@@ -74,14 +83,26 @@ export default function Tasks() {
       variant: 'danger',
     });
     if (confirmed) {
-      deleteTask(taskId);
+      try {
+        await deleteTask(taskId);
+      } catch (err) {
+        console.error('Failed to delete task:', err);
+      }
+    }
+  };
+
+  const handleToggleStatus = async (taskId) => {
+    try {
+      await toggleTaskStatus(taskId);
+    } catch (err) {
+      console.error('Failed to toggle task status:', err);
     }
   };
 
   // Filter and search tasks
   const filteredTasks = tasks.filter(task => {
     const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      task.description?.toLowerCase().includes(searchTerm.toLowerCase());
+      (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesPriority = filterPriority === 'all' || task.priority === filterPriority;
     const matchesStatus = filterStatus === 'all' || task.status === filterStatus;
     return matchesSearch && matchesPriority && matchesStatus;
@@ -94,8 +115,25 @@ export default function Tasks() {
     if (dateA < dateB) return -1;
     if (dateA > dateB) return 1;
     const priorityOrder = { high: 0, medium: 1, low: 2 };
-    return priorityOrder[a.priority] - priorityOrder[b.priority];
+    return (priorityOrder[a.priority] || 1) - (priorityOrder[b.priority] || 1);
   });
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 flex items-center gap-3">
+        <FiAlertCircle className="text-red-500 text-xl flex-shrink-0" />
+        <p className="text-red-700 dark:text-red-400">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -160,12 +198,12 @@ export default function Tasks() {
         {sortedTasks.length > 0 ? (
           sortedTasks.map(task => (
             <div
-              key={task.id}
+              key={task._id}
               className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all animate-fadeIn"
             >
               <div className="flex items-start gap-4">
                 <button
-                  onClick={() => toggleTaskStatus(task.id)}
+                  onClick={() => handleToggleStatus(task._id)}
                   className={`mt-1 flex-shrink-0 transition-colors ${
                     task.status === 'completed'
                       ? 'text-green-500'
@@ -192,7 +230,7 @@ export default function Tasks() {
                         <FiEdit2 />
                       </button>
                       <button
-                        onClick={() => handleDelete(task.id)}
+                        onClick={() => handleDelete(task._id)}
                         className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                       >
                         <FiTrash2 />
@@ -301,9 +339,10 @@ export default function Tasks() {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg hover:from-primary-700 hover:to-primary-800 transition-colors"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg hover:from-primary-700 hover:to-primary-800 transition-colors disabled:opacity-50"
             >
-              {editingTask ? 'Update Task' : 'Add Task'}
+              {submitting ? 'Saving...' : editingTask ? 'Update Task' : 'Add Task'}
             </button>
           </div>
         </form>

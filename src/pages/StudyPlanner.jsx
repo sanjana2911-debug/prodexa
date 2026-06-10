@@ -5,15 +5,17 @@ import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
 import Modal from '../components/Modal';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { calculatePercentage } from '../utils/helpers';
-import { FiPlus, FiTarget, FiEdit2, FiTrash2, FiTrendingUp, FiCheckCircle } from 'react-icons/fi';
+import { FiPlus, FiTarget, FiEdit2, FiTrash2, FiTrendingUp, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 
 export default function StudyPlanner() {
-  const { studyGoals, addStudyGoal, updateStudyGoal, deleteStudyGoal } = useData();
+  const { studyGoals, addStudyGoal, updateStudyGoal, deleteStudyGoal, loading, error } = useData();
   const { confirm } = useConfirm();
   const [showModal, setShowModal] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
   const [filterType, setFilterType] = useState('all');
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -44,17 +46,24 @@ export default function StudyPlanner() {
     setShowModal(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.title.trim()) return;
+    if (!formData.title.trim() || submitting) return;
 
-    if (editingGoal) {
-      updateStudyGoal(editingGoal.id, formData);
-    } else {
-      addStudyGoal(formData);
+    try {
+      setSubmitting(true);
+      if (editingGoal) {
+        await updateStudyGoal(editingGoal._id, formData);
+      } else {
+        await addStudyGoal(formData);
+      }
+      setShowModal(false);
+      resetForm();
+    } catch (err) {
+      console.error('Failed to save goal:', err);
+    } finally {
+      setSubmitting(false);
     }
-    setShowModal(false);
-    resetForm();
   };
 
   const handleDelete = async (goalId) => {
@@ -66,14 +75,22 @@ export default function StudyPlanner() {
       variant: 'danger',
     });
     if (confirmed) {
-      deleteStudyGoal(goalId);
+      try {
+        await deleteStudyGoal(goalId);
+      } catch (err) {
+        console.error('Failed to delete goal:', err);
+      }
     }
   };
 
-  const handleProgressUpdate = (goalId, newProgress) => {
-    const goal = studyGoals.find(g => g.id === goalId);
+  const handleProgressUpdate = async (goalId, newProgress) => {
+    const goal = studyGoals.find(g => g._id === goalId);
     if (goal) {
-      updateStudyGoal(goalId, { ...goal, progress: Math.max(0, Math.min(newProgress, goal.target)) });
+      try {
+        await updateStudyGoal(goalId, { progress: Math.max(0, Math.min(newProgress, goal.target)) });
+      } catch (err) {
+        console.error('Failed to update progress:', err);
+      }
     }
   };
 
@@ -89,6 +106,23 @@ export default function StudyPlanner() {
   const overallPercentage = calculatePercentage(totalProgress, totalTarget);
 
   const goalTypes = ['all', 'daily', 'weekly'];
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 flex items-center gap-3">
+        <FiAlertCircle className="text-red-500 text-xl flex-shrink-0" />
+        <p className="text-red-700 dark:text-red-400">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -153,7 +187,7 @@ export default function StudyPlanner() {
 
             return (
               <div
-                key={goal.id}
+                key={goal._id}
                 className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all animate-fadeIn"
               >
                 <div className="flex items-start justify-between mb-4">
@@ -182,7 +216,7 @@ export default function StudyPlanner() {
                       <FiEdit2 />
                     </button>
                     <button
-                      onClick={() => handleDelete(goal.id)}
+                      onClick={() => handleDelete(goal._id)}
                       className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
                       <FiTrash2 />
@@ -219,7 +253,7 @@ export default function StudyPlanner() {
                   </span>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleProgressUpdate(goal.id, goal.progress - 1)}
+                      onClick={() => handleProgressUpdate(goal._id, goal.progress - 1)}
                       className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium"
                     >
                       -
@@ -228,7 +262,7 @@ export default function StudyPlanner() {
                       {goal.progress}
                     </span>
                     <button
-                      onClick={() => handleProgressUpdate(goal.id, goal.progress + 1)}
+                      onClick={() => handleProgressUpdate(goal._id, goal.progress + 1)}
                       className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium"
                     >
                       +
@@ -242,7 +276,7 @@ export default function StudyPlanner() {
       ) : (
         <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
           <FiTarget className="text-4xl text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-          <p className="text-gray-500 dark:text-gray-400">No goals set yet</p>
+          <p className="text-gray-500 dark:text-gray-400">No goals set yet. Create your first study goal!</p>
           <button onClick={handleOpenAdd} className="mt-3 text-primary-600 dark:text-primary-400 font-medium text-sm hover:underline">
             Create your first goal
           </button>
@@ -310,9 +344,10 @@ export default function StudyPlanner() {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg hover:from-primary-700 hover:to-primary-800 transition-colors"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg hover:from-primary-700 hover:to-primary-800 transition-colors disabled:opacity-50"
             >
-              {editingGoal ? 'Update Goal' : 'Add Goal'}
+              {submitting ? 'Saving...' : editingGoal ? 'Update Goal' : 'Add Goal'}
             </button>
           </div>
         </form>

@@ -97,4 +97,5 @@ export const studyGoalsAPI = {
 export const analyticsAPI = {
   getDashboard: () => api.get('/analytics/dashboard'),
   getMonthly: (params) => api.get('/analytics/monthly', { params }),
+  getAdminUserStats: () => api.get('/analytics/admin/users'),
 };

@@ -124,4 +124,59 @@ const getMonthlyAnalytics = async (req, res, next) => {
   }
 };
 
-module.exports = { getDashboardStats, getMonthlyAnalytics };
+/**
+ * @desc    Get admin-level user statistics
+ * @route   GET /api/analytics/admin/users
+ */
+const getAdminUserStats = async (req, res, next) => {
+  try {
+    const User = require('../models/User');
+
+    // Total registered users
+    const totalUsers = await User.countDocuments({});
+
+    // Active users today (logged in within last 24 hours)
+    const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const activeUsersToday = await User.countDocuments({
+      lastLogin: { $gte: last24Hours },
+    });
+
+    // New users this week
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const newUsersThisWeek = await User.countDocuments({
+      createdAt: { $gte: weekAgo },
+    });
+
+    // Total tasks across all users
+    const Task = require('../models/Task');
+    const totalTasks = await Task.countDocuments({});
+
+    // Total notes across all users
+    const Note = require('../models/Note');
+    const totalNotes = await Note.countDocuments({});
+
+    // Tasks completed today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const tasksCompletedToday = await Task.countDocuments({
+      status: 'completed',
+      updatedAt: { $gte: todayStart },
+    });
+
+    res.json({
+      success: true,
+      stats: {
+        totalUsers,
+        activeUsersToday,
+        newUsersThisWeek,
+        totalTasks,
+        totalNotes,
+        tasksCompletedToday,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getDashboardStats, getMonthlyAnalytics, getAdminUserStats };

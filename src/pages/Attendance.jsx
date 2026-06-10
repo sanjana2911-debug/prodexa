@@ -4,11 +4,12 @@
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { getMonthName, getDaysInMonth, calculatePercentage } from '../utils/helpers';
-import { FiCheckCircle, FiXCircle, FiCalendar, FiTrendingUp } from 'react-icons/fi';
+import { FiCheckCircle, FiXCircle, FiCalendar, FiTrendingUp, FiAlertCircle } from 'react-icons/fi';
 
 export default function Attendance() {
-  const { attendance, markAttendance, getAttendancePercentage } = useData();
+  const { attendance, markAttendance, getAttendancePercentage, loading, error } = useData();
   const { confirm } = useConfirm();
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -43,7 +44,10 @@ export default function Attendance() {
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     const isFuture = new Date(dateStr) > currentDate;
     
-    const attendanceRecord = attendance.find(a => a.date === dateStr);
+    const attendanceRecord = attendance.find(a => {
+      const aDate = new Date(a.date).toISOString().split('T')[0];
+      return aDate === dateStr;
+    });
     
     calendarDays.push({
       day,
@@ -55,14 +59,35 @@ export default function Attendance() {
     });
   }
 
-  const handleMarkAttendance = (date, status) => {
+  const handleMarkAttendance = async (date, status) => {
     const dayOfWeek = new Date(date).getDay();
     const subject = dayOfWeek <= 2 ? 'Mathematics' : 'Computer Science';
-    markAttendance(date, status, subject);
+    try {
+      await markAttendance(date, status, subject);
+    } catch (err) {
+      console.error('Failed to mark attendance:', err);
+    }
   };
 
   const months = Array.from({ length: 12 }, (_, i) => getMonthName(i));
   const years = [selectedYear - 1, selectedYear, selectedYear + 1];
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 flex items-center gap-3">
+        <FiAlertCircle className="text-red-500 text-xl flex-shrink-0" />
+        <p className="text-red-700 dark:text-red-400">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -185,7 +210,7 @@ export default function Attendance() {
                           cancelLabel: 'Absent',
                           variant: 'info',
                         });
-                        handleMarkAttendance(cell.date, result ? 'present' : 'absent');
+                        await handleMarkAttendance(cell.date, result ? 'present' : 'absent');
                       }
                     }}
                     title={cell.subject ? `${cell.subject} - ${cell.status}` : 'Click to mark'}
@@ -214,7 +239,7 @@ export default function Attendance() {
         <div className="divide-y divide-gray-100 dark:divide-gray-700">
           {monthAttendance.length > 0 ? (
             [...monthAttendance].reverse().slice(0, 20).map(record => (
-              <div key={record.id} className="px-6 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/30">
+              <div key={record._id} className="px-6 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/30">
                 <div className="flex items-center gap-3">
                   {record.status === 'present' ? (
                     <FiCheckCircle className="text-green-500" />

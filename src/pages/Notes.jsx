@@ -5,8 +5,9 @@ import { useState } from 'react';
 import { useData } from '../context/DataContext';
 import { useConfirm } from '../context/ConfirmContext';
 import Modal from '../components/Modal';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { formatDate } from '../utils/helpers';
-import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiAnchor, FiFileText, FiBookmark } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiEdit2, FiTrash2, FiAnchor, FiFileText, FiBookmark, FiAlertCircle } from 'react-icons/fi';
 
 const NOTE_COLORS = [
   { name: 'Indigo', value: '#6366f1' },
@@ -20,12 +21,13 @@ const NOTE_COLORS = [
 const CATEGORIES = ['General', 'Programming', 'Science', 'Mathematics', 'Language', 'Other'];
 
 export default function Notes() {
-  const { notes, addNote, updateNote, deleteNote, toggleNotePin } = useData();
+  const { notes, addNote, updateNote, deleteNote, toggleNotePin, loading, error } = useData();
   const { confirm } = useConfirm();
   const [showModal, setShowModal] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     content: '',
@@ -54,17 +56,24 @@ export default function Notes() {
     setShowModal(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.title.trim()) return;
+    if (!formData.title.trim() || submitting) return;
 
-    if (editingNote) {
-      updateNote(editingNote.id, formData);
-    } else {
-      addNote(formData);
+    try {
+      setSubmitting(true);
+      if (editingNote) {
+        await updateNote(editingNote._id, formData);
+      } else {
+        await addNote(formData);
+      }
+      setShowModal(false);
+      resetForm();
+    } catch (err) {
+      console.error('Failed to save note:', err);
+    } finally {
+      setSubmitting(false);
     }
-    setShowModal(false);
-    resetForm();
   };
 
   const handleDelete = async (noteId) => {
@@ -76,7 +85,19 @@ export default function Notes() {
       variant: 'danger',
     });
     if (confirmed) {
-      deleteNote(noteId);
+      try {
+        await deleteNote(noteId);
+      } catch (err) {
+        console.error('Failed to delete note:', err);
+      }
+    }
+  };
+
+  const handleTogglePin = async (noteId) => {
+    try {
+      await toggleNotePin(noteId);
+    } catch (err) {
+      console.error('Failed to toggle pin:', err);
     }
   };
 
@@ -94,6 +115,23 @@ export default function Notes() {
     if (!a.pinned && b.pinned) return 1;
     return new Date(b.updatedAt) - new Date(a.updatedAt);
   });
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <LoadingSpinner />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 flex items-center gap-3">
+        <FiAlertCircle className="text-red-500 text-xl flex-shrink-0" />
+        <p className="text-red-700 dark:text-red-400">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -158,7 +196,7 @@ export default function Notes() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {sortedNotes.map(note => (
             <div
-              key={note.id}
+              key={note._id}
               className="group bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all overflow-hidden animate-fadeIn"
             >
               {/* Color bar */}
@@ -172,7 +210,7 @@ export default function Notes() {
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
-                      onClick={() => toggleNotePin(note.id)}
+                      onClick={() => handleTogglePin(note._id)}
                       className={`p-1.5 rounded-lg transition-colors ${
                         note.pinned
                           ? 'text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
@@ -188,7 +226,7 @@ export default function Notes() {
                       <FiEdit2 />
                     </button>
                     <button
-                      onClick={() => handleDelete(note.id)}
+                      onClick={() => handleDelete(note._id)}
                       className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                     >
                       <FiTrash2 />
@@ -292,9 +330,10 @@ export default function Notes() {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg hover:from-primary-700 hover:to-primary-800 transition-colors"
+              disabled={submitting}
+              className="flex-1 px-4 py-2 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-lg hover:from-primary-700 hover:to-primary-800 transition-colors disabled:opacity-50"
             >
-              {editingNote ? 'Update Note' : 'Add Note'}
+              {submitting ? 'Saving...' : editingNote ? 'Update Note' : 'Add Note'}
             </button>
           </div>
         </form>
