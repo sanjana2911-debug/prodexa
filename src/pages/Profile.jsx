@@ -124,7 +124,7 @@ export default function Profile() {
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Member Since</p>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">
-                  {user?.joinDate ? formatDate(user.joinDate) : 'N/A'}
+                  {user?.createdAt ? formatDate(user.createdAt) : 'N/A'}
                 </p>
               </div>
             </div>

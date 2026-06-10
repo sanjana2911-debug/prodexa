@@ -177,12 +177,6 @@ export default function Login() {
             </Link>
           </p>
 
-          {/* Demo Credentials */}
-          <div className="mt-4 p-3 bg-primary-50 dark:bg-primary-900/20 rounded-lg">
-            <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-              Demo: john@example.com / password123
-            </p>
-          </div>
         </div>
       </div>
     </div>
