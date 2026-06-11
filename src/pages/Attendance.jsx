@@ -60,10 +60,8 @@ export default function Attendance() {
   }
 
   const handleMarkAttendance = async (date, status) => {
-    const dayOfWeek = new Date(date).getDay();
-    const subject = dayOfWeek <= 2 ? 'Mathematics' : 'Computer Science';
     try {
-      await markAttendance(date, status, subject);
+      await markAttendance(date, status, 'General');
     } catch (err) {
       console.error('Failed to mark attendance:', err);
     }
