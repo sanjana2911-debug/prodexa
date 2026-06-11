@@ -20,7 +20,7 @@ const config = {
       pass: process.env.SMTP_PASS || '',
     },
     rateLimitWindowMs: 15 * 60 * 1000, // 15 minutes
-    rateLimitMax: 100,
+    rateLimitMax: 200,
     uploadDir: 'uploads',
     logLevel: 'debug',
   },
@@ -40,7 +40,7 @@ const config = {
       pass: process.env.SMTP_PASS,
     },
     rateLimitWindowMs: 15 * 60 * 1000,
-    rateLimitMax: 50,
+    rateLimitMax: 200,
     uploadDir: 'uploads',
     logLevel: 'info',
   },

@@ -1,7 +1,7 @@
 /**
  * Login page with form validation and error handling
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FiMail, FiLock, FiEye, FiEyeOff, FiAlertCircle } from 'react-icons/fi';
@@ -13,8 +13,10 @@ export default function Login() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
   const { login, error, loading } = useAuth();
   const navigate = useNavigate();
+  const submitRef = useRef(false);
 
   // Handle input changes
   const handleChange = (e) => {
@@ -47,10 +49,19 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+    if (submitting || submitRef.current) return;
 
-    const success = await login(formData.email, formData.password);
-    if (success) {
-      navigate('/dashboard', { replace: true });
+    submitRef.current = true;
+    setSubmitting(true);
+
+    try {
+      const success = await login(formData.email, formData.password);
+      if (success) {
+        navigate('/dashboard', { replace: true });
+      }
+    } finally {
+      submitRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -152,7 +163,7 @@ export default function Login() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || submitting}
               className="w-full py-2.5 px-4 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-medium rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-500/25 hover:shadow-xl hover:shadow-primary-500/30"
             >
               {loading ? (

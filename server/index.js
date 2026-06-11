@@ -59,10 +59,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting
-app.use('/api', apiLimiter);
+// Rate limiting - Auth limiters must be applied BEFORE general API limiter
+// so login/register get their dedicated stricter limits first
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+app.use('/api', apiLimiter);
 
 // Swagger API docs
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
