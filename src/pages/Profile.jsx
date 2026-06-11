@@ -1,24 +1,81 @@
 /**
  * Profile page - View and edit user profile with settings
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import Modal from '../components/Modal';
+import LoadingSpinner from '../components/LoadingSpinner';
 import { formatDate } from '../utils/helpers';
-import { FiUser, FiMail, FiBook, FiCalendar, FiEdit2, FiSave, FiCamera } from 'react-icons/fi';
+import { uploadAPI } from '../services/api';
+import { FiUser, FiMail, FiBook, FiCalendar, FiEdit2, FiSave, FiCamera, FiTrash2, FiCheck, FiX } from 'react-icons/fi';
 
 export default function Profile() {
-  const { user, updateProfile, logout } = useAuth();
+  const { user, updateProfile, logout, fetchUser } = useAuth();
   const { getStatistics } = useData();
   const stats = getStatistics();
   const [showEditModal, setShowEditModal] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const fileInputRef = useRef(null);
   const [formData, setFormData] = useState({
     name: user?.name || '',
     bio: user?.bio || '',
     course: user?.course || '',
     semester: user?.semester || 1,
   });
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Only JPEG, PNG, and WebP images are allowed');
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size must be less than 5MB');
+      return;
+    }
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = () => setPreview(reader.result);
+    reader.readAsDataURL(file);
+
+    // Upload immediately
+    handleUpload(file);
+  };
+
+  const handleUpload = async (file) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const res = await uploadAPI.uploadAvatar(formData);
+      if (fetchUser) await fetchUser();
+    } catch (err) {
+      console.error('Upload failed:', err);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setUploading(false);
+      setPreview(null);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!confirm('Remove your profile picture?')) return;
+    try {
+      await uploadAPI.removeAvatar();
+      if (fetchUser) await fetchUser();
+    } catch (err) {
+      console.error('Failed to remove avatar:', err);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,14 +93,53 @@ export default function Profile() {
         {/* Profile Info */}
         <div className="px-6 lg:px-8 pb-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-end -mt-12 sm:-mt-16 gap-4 mb-4">
-            {/* Avatar */}
-            <div className="relative">
-              <div className="w-24 h-24 lg:w-32 lg:h-32 rounded-2xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-4xl lg:text-5xl font-bold border-4 border-white dark:border-gray-800 shadow-lg">
-                {user?.name?.charAt(0) || 'U'}
+            {/* Avatar with Upload */}
+            <div className="relative group">
+              <div className="w-24 h-24 lg:w-32 lg:h-32 rounded-2xl border-4 border-white dark:border-gray-800 shadow-lg overflow-hidden bg-gradient-to-br from-primary-400 to-primary-600">
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white text-4xl lg:text-5xl font-bold">
+                    {user?.name?.charAt(0) || 'U'}
+                  </div>
+                )}
+                {preview && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <LoadingSpinner />
+                  </div>
+                )}
               </div>
-              <button className="absolute bottom-2 right-2 p-2 bg-white dark:bg-gray-700 rounded-full shadow-md hover:shadow-lg transition-shadow">
-                <FiCamera className="text-gray-600 dark:text-gray-300" />
-              </button>
+              {/* Upload button overlay */}
+              <div className="absolute -bottom-1 -right-1 flex gap-1">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="p-2 bg-white dark:bg-gray-700 rounded-full shadow-md hover:shadow-lg transition-shadow disabled:opacity-50"
+                  title="Upload profile picture"
+                >
+                  <FiCamera className="text-gray-600 dark:text-gray-300 text-sm" />
+                </button>
+                {user?.avatar && (
+                  <button
+                    onClick={handleRemoveAvatar}
+                    className="p-2 bg-white dark:bg-gray-700 rounded-full shadow-md hover:shadow-lg transition-shadow"
+                    title="Remove profile picture"
+                  >
+                    <FiTrash2 className="text-red-500 text-sm" />
+                  </button>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                onChange={handleFileChange}
+                className="hidden"
+              />
             </div>
             
             <div className="flex-1 min-w-0 pt-2 sm:pt-12">

@@ -34,9 +34,17 @@ export default function Navbar({ onMenuToggle }) {
 
           {/* User avatar */}
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-              {user?.name?.charAt(0) || 'U'}
-            </div>
+            {user?.avatar ? (
+              <img
+                src={user.avatar}
+                alt={user.name}
+                className="w-8 h-8 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600"
+              />
+            ) : (
+              <div className="w-8 h-8 bg-gradient-to-br from-primary-400 to-primary-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                {user?.name?.charAt(0) || 'U'}
+              </div>
+            )}
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden sm:block">
               {user?.name || 'User'}
             </span>

@@ -45,6 +45,14 @@ api.interceptors.response.use(
 
 export default api;
 
+// ---- UPLOAD API ----
+export const uploadAPI = {
+  uploadAvatar: (formData) => api.post('/upload/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  removeAvatar: () => api.delete('/upload/avatar'),
+};
+
 // ---- AUTH API ----
 
 export const authAPI = {

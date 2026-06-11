@@ -27,6 +27,7 @@ const attendanceRoutes = require('./routes/attendanceRoutes');
 const noteRoutes = require('./routes/noteRoutes');
 const studyGoalRoutes = require('./routes/studyGoalRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
 
 const app = express();
 const PORT = cfg.port;
@@ -100,6 +101,7 @@ app.use('/api/attendance', attendanceRoutes);
 app.use('/api/notes', noteRoutes);
 app.use('/api/study-goals', studyGoalRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));

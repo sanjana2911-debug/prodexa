@@ -1,22 +1,21 @@
 /**
- * File upload middleware using multer
+ * File upload middleware using multer + Cloudinary
  * Handles profile image uploads with size and type validation
  */
 
 const multer = require('multer');
-const path = require('path');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('../config/cloudinary');
 const ApiError = require('../utils/ApiError');
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '..', '..', 'uploads');
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, `avatar-${uniqueSuffix}${ext}`);
+// Configure Cloudinary storage
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'prodexa/avatars',
+    allowedFormats: ['jpeg', 'jpg', 'png', 'webp'],
+    transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }],
+    public_id: (req, file) => `avatar-${req.user._id}-${Date.now()}`,
   },
 });
 

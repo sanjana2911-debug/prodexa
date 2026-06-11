@@ -2,7 +2,7 @@
  * AuthContext provides authentication state management
  * Uses real backend API for login, register, and profile management
  */
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authAPI } from '../services/api';
 
 const AuthContext = createContext();
@@ -12,6 +12,18 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [token, setToken] = useState(() => localStorage.getItem('prodexa_token'));
+
+  // Helper to re-fetch user profile (used after avatar upload)
+  const fetchUser = useCallback(async () => {
+    try {
+      const res = await authAPI.getProfile();
+      setUser(res.data.user);
+      return res.data.user;
+    } catch (err) {
+      console.error('Failed to fetch user:', err);
+      return null;
+    }
+  }, []);
 
   // Check for saved session on mount
   useEffect(() => {
@@ -96,6 +108,7 @@ export function AuthProvider({ children }) {
     error,
     token,
     login,
+    fetchUser,
     register,
     logout,
     updateProfile,
