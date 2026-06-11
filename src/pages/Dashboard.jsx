@@ -4,7 +4,7 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { formatDate, formatDateTime } from '../utils/helpers';
+import { formatDate, formatDateTime, getGreeting } from '../utils/helpers';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { FiCheckSquare, FiClock, FiCalendar, FiTrendingUp, FiPlus, FiFileText, FiTarget, FiArrowRight, FiAlertCircle } from 'react-icons/fi';
 
@@ -13,14 +13,6 @@ export default function Dashboard() {
   const { getStatistics, getRecentActivities, tasks, loading, error, dashboardStats } = useData();
   const stats = getStatistics();
   const activities = getRecentActivities();
-
-  // Get time-based greeting
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  };
 
   // Use dashboard stats from API if available, fall back to local calculation
   const displayStats = dashboardStats || stats;
