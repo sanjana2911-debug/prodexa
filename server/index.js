@@ -31,6 +31,12 @@ const analyticsRoutes = require('./routes/analyticsRoutes');
 const app = express();
 const PORT = cfg.port;
 
+// Trust proxy - Required for Render/Vercel/Heroku etc.
+// Without this, all requests appear to come from the proxy IP,
+// so ALL users share the same rate-limit bucket, causing false
+// 'Too many requests' errors in production.
+app.set('trust proxy', 1);
+
 // Connect to MongoDB
 connectDB();
 
@@ -50,17 +56,22 @@ app.use(express.urlencoded({ extended: true }));
 // Data sanitization against NoSQL injection
 app.use(mongoSanitize());
 
-// Request logging
+// Request logging with real IP behind proxy
 app.use((req, res, next) => {
   logger.info(`${req.method} ${req.originalUrl}`, {
     ip: req.ip,
+    xForwardedFor: req.headers['x-forwarded-for'],
     userAgent: req.headers['user-agent'],
   });
   next();
 });
 
-// Rate limiting - Auth limiters must be applied BEFORE general API limiter
-// so login/register get their dedicated stricter limits first
+// Rate limiting
+// IMPORTANT ORDER: Auth-specific limiters must be applied BEFORE
+// the general API limiter, so auth endpoints get their dedicated
+// limits first. Also, the apiLimiter uses `skip` to exclude auth
+// routes to prevent double-counting (requests should not be counted
+// by both authLimiter AND apiLimiter).
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
 app.use('/api', apiLimiter);

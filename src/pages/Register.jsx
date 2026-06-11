@@ -1,7 +1,7 @@
 /**
  * Register page with form validation
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FiUser, FiMail, FiLock, FiAlertCircle } from 'react-icons/fi';
@@ -14,8 +14,10 @@ export default function Register() {
     confirmPassword: '',
   });
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
   const { register, error, loading } = useAuth();
   const navigate = useNavigate();
+  const submitRef = useRef(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -48,10 +50,19 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+    if (submitting || submitRef.current) return;
 
-    const success = await register(formData.name, formData.email, formData.password);
-    if (success) {
-      navigate('/dashboard', { replace: true });
+    submitRef.current = true;
+    setSubmitting(true);
+
+    try {
+      const success = await register(formData.name, formData.email, formData.password);
+      if (success) {
+        navigate('/dashboard', { replace: true });
+      }
+    } finally {
+      submitRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -159,7 +170,7 @@ export default function Register() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || submitting}
               className="w-full py-2.5 px-4 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-medium rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary-500/25"
             >
               {loading ? (

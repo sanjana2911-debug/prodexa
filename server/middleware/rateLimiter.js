@@ -7,6 +7,10 @@ const rateLimit = require('express-rate-limit');
 const cfg = require('../config/env');
 
 // General API rate limiter
+// Skip auth routes since they have their own dedicated stricter limiter.
+// Without this skip, a request to /api/auth/register gets counted by
+// BOTH authLimiter AND apiLimiter, causing double-counting and false
+// rate-limit hits.
 const apiLimiter = rateLimit({
   windowMs: cfg.rateLimitWindowMs,
   max: cfg.rateLimitMax,
@@ -16,6 +20,7 @@ const apiLimiter = rateLimit({
     success: false,
     message: 'Too many requests, please try again later.',
   },
+  skip: (req) => req.originalUrl.startsWith('/api/auth/'),
 });
 
 // Strict limiter for auth endpoints (prevent brute force)
