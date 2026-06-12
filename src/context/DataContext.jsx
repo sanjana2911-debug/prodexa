@@ -1,8 +1,13 @@
 /**
  * DataContext manages all application data (tasks, attendance, notes, study goals)
  * Fetches real data from MongoDB through backend APIs
+ * Only fetches data when user is authenticated to prevent:
+ * - 429 rate limit errors from unauthenticated requests
+ * - Wasted API calls on login/landing pages
+ * - "No token provided" errors filling console
  */
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { useAuth } from './AuthContext';
 import {
   tasksAPI,
   attendanceAPI,
@@ -23,7 +28,14 @@ export function DataProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch all data on mount
+  // Only fetch data when user is authenticated — prevents:
+  // - 5 API calls on Login page (wasteful)
+  // - 5 API calls on Landing page (wasteful)
+  // - Rate limiter exhaustion from unauthenticated requests
+  // - "No token provided" errors in console
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
+  // Fetch all data on mount — but only if user is authenticated
   const fetchAllData = useCallback(async () => {
     try {
       setLoading(true);
@@ -50,9 +62,21 @@ export function DataProvider({ children }) {
     }
   }, []);
 
+  // Only fetch data once auth is initialized AND user is authenticated
+  // This prevents the 5 parallel API calls from firing on Login/Landing pages
   useEffect(() => {
+    if (authLoading) {
+      // Auth is still initializing — wait
+      return;
+    }
+    if (!isAuthenticated) {
+      // User is not logged in — skip all API calls to avoid rate limiting
+      setLoading(false);
+      return;
+    }
+    // User is authenticated — fetch data
     fetchAllData();
-  }, [fetchAllData]);
+  }, [authLoading, isAuthenticated, fetchAllData]);
 
   // ---- TASK OPERATIONS ----
 
