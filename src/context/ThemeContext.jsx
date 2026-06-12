@@ -1,8 +1,9 @@
 /**
  * ThemeContext provides dark mode functionality
  * Theme preference is persisted in localStorage
+ * Uses useMemo to prevent unnecessary re-renders of children
  */
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 
 const ThemeContext = createContext();
 
@@ -27,12 +28,15 @@ export function ThemeProvider({ children }) {
     localStorage.setItem('prodexa_theme', isDark ? 'dark' : 'light');
   }, [isDark]);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     setIsDark(prev => !prev);
-  };
+  }, []);
+
+  // Memoize context value to prevent re-renders when isDark hasn't changed
+  const value = useMemo(() => ({ isDark, toggleTheme }), [isDark, toggleTheme]);
 
   return (
-    <ThemeContext.Provider value={{ isDark, toggleTheme }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

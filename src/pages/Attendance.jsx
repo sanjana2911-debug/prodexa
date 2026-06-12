@@ -188,7 +188,7 @@ export default function Attendance() {
               <div key={index} className="aspect-square">
                 {cell.day ? (
                   <div
-                    className={`h-full rounded-lg flex flex-col items-center justify-center text-sm transition-all ${
+                    className={`h-full w-full min-h-[44px] min-w-[44px] rounded-lg flex flex-col items-center justify-center text-sm transition-all ${
                       cell.isFuture
                         ? 'bg-gray-50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500'
                         : cell.status === 'present'

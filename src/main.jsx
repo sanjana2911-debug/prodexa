@@ -9,8 +9,13 @@ import { ConfirmProvider } from './context/ConfirmContext';
 import { ToastProvider } from './context/ToastContext';
 import './index.css';
 
+// StrictMode is only needed in development — it double-invokes effects
+// to detect bugs. In production, it adds unnecessary overhead and
+// doubles API calls on mount (hitting rate limits and slowing load time).
+const StrictWrapper = import.meta.env.DEV ? React.StrictMode : React.Fragment;
+
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
+  <StrictWrapper>
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
@@ -24,5 +29,5 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
-  </React.StrictMode>
+  </StrictWrapper>
 );

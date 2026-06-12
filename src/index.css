@@ -44,3 +44,20 @@
 .animate-slideIn {
   animation: slideIn 0.3s ease-out;
 }
+
+/* Mobile touch improvements — remove 300ms tap delay on iOS Safari */
+* {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Ensure minimum touch target size (44px for mobile accessibility) */
+@media (max-width: 640px) {
+  button, 
+  a, 
+  input[type="submit"],
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
