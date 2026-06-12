@@ -5,6 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Prodexa - Student Productivity Platform</title>
+    <!-- Prevent theme flash: apply dark class immediately if saved or system preference says dark -->
+    <script>
+      (function() {
+        var theme = localStorage.getItem('prodexa_theme');
+        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+    <!-- Prevent white flash on mobile before React mounts -->
+    <style>
+      html { background-color: #f9fafb; }
+      html.dark { background-color: #111827; }
+      body { margin: 0; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
