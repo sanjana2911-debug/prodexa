@@ -2,6 +2,12 @@
  * Prodexa Server - Production Entry Point
  * Express.js REST API with MongoDB, JWT auth, Redis caching,
  * Rate limiting, Swagger docs, File uploads, and more
+ *
+ * PERFORMANCE NOTE (June 2026):
+ * - Added per-request timing middleware to identify slow endpoints
+ * - Each dashboard API call is timed and logged with response_ms
+ * - Analytics controller queries now run in parallel with maxTimeMS
+ * - MongoDB connection uses keepalive to reduce cold-start latency
  */
 
 const path = require('path');
@@ -56,6 +62,30 @@ app.use(express.urlencoded({ extended: true }));
 
 // Data sanitization against NoSQL injection
 app.use(mongoSanitize());
+
+// PERFORMANCE: Request timing middleware
+// Logs response time for EVERY API request to identify slow endpoints
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    logger.info(`[PERF] ${req.method} ${req.originalUrl} -> ${res.statusCode} (${duration}ms)`, {
+      method: req.method,
+      path: req.originalUrl,
+      statusCode: res.statusCode,
+      responseMs: duration,
+    });
+    // Flag endpoints that take >1s as warnings
+    if (duration > 1000) {
+      logger.warn(`[PERF-SLOW] ${req.method} ${req.originalUrl} took ${duration}ms`, {
+        method: req.method,
+        path: req.originalUrl,
+        responseMs: duration,
+      });
+    }
+  });
+  next();
+});
 
 // Request logging with real IP behind proxy
 app.use((req, res, next) => {
