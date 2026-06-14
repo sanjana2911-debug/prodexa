@@ -1,5 +1,13 @@
 /**
  * Attendance page - Mark present/absent, view history and monthly statistics
+ *
+ * CRITICAL BUG FIXED (June 14, 2026):
+ * - The `!cell.isWeekend` condition in the onClick handler blocked ALL weekend dates
+ *   from being clickable. Since today is Sunday June 14, June 13 (Sat) and June 14 (Sun)
+ *   were both disabled. Only Friday June 12 worked.
+ * - Fix: weekend dates remain visually distinct (greyed styling) but ARE clickable.
+ *   The `isFuture` and `isStatus` checks are sufficient to prevent invalid clicks.
+ * - Legend on small screens now wraps properly to avoid overflow.
  */
 import { useState } from 'react';
 import { useData } from '../context/DataContext';
@@ -138,7 +146,7 @@ export default function Attendance() {
       {/* Calendar */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
         {/* Month/Year Selector */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-4">
             <select
               value={selectedMonth}
@@ -159,14 +167,15 @@ export default function Attendance() {
               ))}
             </select>
           </div>
-          <div className="flex items-center gap-3 text-sm">
+          {/* Legend — flex-wrap prevents overflow on small screens */}
+          <div className="flex flex-wrap items-center gap-3 text-sm">
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span className="text-gray-500 dark:text-gray-400">Present</span>
+              <div className="w-3 h-3 rounded-full bg-green-500 flex-shrink-0"></div>
+              <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">Present</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-full bg-red-500"></div>
-              <span className="text-gray-500 dark:text-gray-400">Absent</span>
+              <div className="w-3 h-3 rounded-full bg-red-500 flex-shrink-0"></div>
+              <span className="text-gray-500 dark:text-gray-400 whitespace-nowrap">Absent</span>
             </div>
           </div>
         </div>
@@ -198,9 +207,15 @@ export default function Attendance() {
                         : cell.isWeekend
                         ? 'bg-gray-50 dark:bg-gray-700/50 text-gray-400 dark:text-gray-500'
                         : 'bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer'
+                    } ${!cell.isFuture && !cell.status ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600' : ''} ${
+                      cell.isFuture ? 'opacity-50' : ''
                     }`}
                     onClick={async () => {
-                      if (!cell.isFuture && !cell.isWeekend && !cell.status) {
+                      // CRITICAL: Only block future dates and dates that already have a status.
+                      // Weekend dates are NOT blocked — students can have attendance on weekends.
+                      // The `!cell.isWeekend` check was REMOVED because it prevented clicking
+                      // on Saturdays and Sundays entirely (bug: June 13-14, 2026 were unclickable).
+                      if (!cell.isFuture && !cell.status) {
                         const result = await confirm({
                           title: 'Mark Attendance',
                           message: `Mark ${cell.date} as Present?`,
@@ -211,7 +226,13 @@ export default function Attendance() {
                         await handleMarkAttendance(cell.date, result ? 'present' : 'absent');
                       }
                     }}
-                    title={cell.subject ? `${cell.subject} - ${cell.status}` : 'Click to mark'}
+                    title={
+                      cell.isFuture
+                        ? 'Future date'
+                        : cell.status
+                        ? `${cell.subject || 'N/A'} - ${cell.status}`
+                        : 'Tap to mark attendance'
+                    }
                   >
                     <span className="font-medium">{cell.day}</span>
                     {cell.status && (
