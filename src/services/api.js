@@ -1,6 +1,10 @@
 /**
  * API service configuration using Axios
  * This file sets up the base configuration for API calls to the backend server
+ *
+ * CRITICAL: All requests have a 15-second default timeout to prevent the
+ * dashboard from hanging indefinitely. If the backend is slow or unresponsive,
+ * the request will be aborted and the UI will render with partial/fallback data.
  */
 
 import axios from 'axios';
@@ -13,6 +17,10 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // CRITICAL: Default timeout of 15 seconds to prevent infinite loading spinners
+  // If a request takes longer than this, it will be aborted and the catch handler
+  // will fire, allowing the UI to render with partial data instead of hanging forever
+  timeout: 15000,
 });
 
 // Request interceptor to add auth token

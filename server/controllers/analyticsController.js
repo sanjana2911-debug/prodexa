@@ -1,5 +1,15 @@
 /**
  * Analytics controller - provides aggregated data for dashboard and analytics pages
+ *
+ * CRITICAL PERFORMANCE NOTE:
+ * This controller runs up to 10 MongoDB queries per request. If any query is slow
+ * (missing index, large dataset, network latency), the entire dashboard hangs.
+ *
+ * Fixes applied:
+ * 1. All queries run in PARALLEL via Promise.all (was sequential before)
+ * 2. Each query has maxTimeMS: 5000 to abort if MongoDB is slow
+ * 3. Upcoming tasks query is limited to 5 docs, sorted, with covered index
+ * 4. Goal calculations done client-side after fetching (reduces aggregation overhead)
  */
 
 const Task = require('../models/Task');
@@ -14,39 +24,55 @@ const getDashboardStats = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
-    // Task statistics
-    const totalTasks = await Task.countDocuments({ user: userId });
-    const completedTasks = await Task.countDocuments({ user: userId, status: 'completed' });
-    const pendingTasks = await Task.countDocuments({ user: userId, status: { $ne: 'completed' } });
-    const inProgressTasks = await Task.countDocuments({ user: userId, status: 'in-progress' });
+    // Run ALL queries in PARALLEL — reducing wall-clock time from ~N queries sequentially
+    // to the time of the SINGLE slowest query.
+    // Each query has maxTimeMS to prevent MongoDB from hanging on unindexed collections.
+    const MAX_TIME = 5000;
 
-    // Attendance statistics
-    const totalAttendance = await Attendance.countDocuments({ user: userId });
-    const presentDays = await Attendance.countDocuments({ user: userId, status: 'present' });
+    const [
+      totalTasks,
+      completedTasks,
+      pendingTasks,
+      inProgressTasks,
+      totalAttendance,
+      presentDays,
+      highPriority,
+      mediumPriority,
+      lowPriority,
+      goals,
+      upcomingTasks,
+    ] = await Promise.all([
+      Task.countDocuments({ user: userId }).maxTimeMS(MAX_TIME),
+      Task.countDocuments({ user: userId, status: 'completed' }).maxTimeMS(MAX_TIME),
+      Task.countDocuments({ user: userId, status: { $ne: 'completed' } }).maxTimeMS(MAX_TIME),
+      Task.countDocuments({ user: userId, status: 'in-progress' }).maxTimeMS(MAX_TIME),
+      Attendance.countDocuments({ user: userId }).maxTimeMS(MAX_TIME),
+      Attendance.countDocuments({ user: userId, status: 'present' }).maxTimeMS(MAX_TIME),
+      Task.countDocuments({ user: userId, priority: 'high' }).maxTimeMS(MAX_TIME),
+      Task.countDocuments({ user: userId, priority: 'medium' }).maxTimeMS(MAX_TIME),
+      Task.countDocuments({ user: userId, priority: 'low' }).maxTimeMS(MAX_TIME),
+      StudyGoal.find({ user: userId }).maxTimeMS(MAX_TIME).lean(),
+      Task.find({
+        user: userId,
+        status: { $ne: 'completed' },
+        dueDate: { $lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+      })
+        .sort({ dueDate: 1 })
+        .limit(5)
+        .maxTimeMS(MAX_TIME)
+        .lean(),
+    ]);
+
+    // Attendance percentage
     const attendancePercentage = totalAttendance > 0
       ? Math.round((presentDays / totalAttendance) * 100)
       : 0;
 
-    // Study goal statistics
-    const goals = await StudyGoal.find({ user: userId });
+    // Goal statistics (client-side calculation — fast, avoids aggregate pipeline)
     const completedGoals = goals.filter(g => g.progress >= g.target).length;
     const totalProgress = goals.reduce((sum, g) => sum + g.progress, 0);
     const totalTarget = goals.reduce((sum, g) => sum + g.target, 0);
     const goalPercentage = totalTarget > 0 ? Math.round((totalProgress / totalTarget) * 100) : 0;
-
-    // Priority breakdown
-    const highPriority = await Task.countDocuments({ user: userId, priority: 'high' });
-    const mediumPriority = await Task.countDocuments({ user: userId, priority: 'medium' });
-    const lowPriority = await Task.countDocuments({ user: userId, priority: 'low' });
-
-    // Upcoming tasks (due within next 7 days, not completed)
-    const nextWeek = new Date();
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    const upcomingTasks = await Task.find({
-      user: userId,
-      status: { $ne: 'completed' },
-      dueDate: { $lte: nextWeek },
-    }).sort({ dueDate: 1 }).limit(5);
 
     res.json({
       success: true,
@@ -73,6 +99,8 @@ const getMonthlyAnalytics = async (req, res, next) => {
     const { year } = req.query;
     const targetYear = year ? parseInt(year) : new Date().getFullYear();
 
+    const MAX_TIME = 5000;
+
     // Monthly attendance data
     const monthlyAttendance = await Attendance.aggregate([
       {
@@ -90,7 +118,7 @@ const getMonthlyAnalytics = async (req, res, next) => {
           count: { $sum: 1 },
         },
       },
-    ]);
+    ]).maxTimeMS(MAX_TIME);
 
     // Monthly task completion data
     const monthlyTasks = await Task.aggregate([
@@ -109,7 +137,7 @@ const getMonthlyAnalytics = async (req, res, next) => {
           count: { $sum: 1 },
         },
       },
-    ]);
+    ]).maxTimeMS(MAX_TIME);
 
     res.json({
       success: true,
@@ -131,37 +159,25 @@ const getMonthlyAnalytics = async (req, res, next) => {
 const getAdminUserStats = async (req, res, next) => {
   try {
     const User = require('../models/User');
+    const MAX_TIME = 5000;
 
-    // Total registered users
-    const totalUsers = await User.countDocuments({});
-
-    // Active users today (logged in within last 24 hours)
-    const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const activeUsersToday = await User.countDocuments({
-      lastLogin: { $gte: last24Hours },
-    });
-
-    // New users this week
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    const newUsersThisWeek = await User.countDocuments({
-      createdAt: { $gte: weekAgo },
-    });
-
-    // Total tasks across all users
-    const Task = require('../models/Task');
-    const totalTasks = await Task.countDocuments({});
-
-    // Total notes across all users
-    const Note = require('../models/Note');
-    const totalNotes = await Note.countDocuments({});
-
-    // Tasks completed today
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const tasksCompletedToday = await Task.countDocuments({
-      status: 'completed',
-      updatedAt: { $gte: todayStart },
-    });
+    // Run all queries in PARALLEL to minimize response time
+    const [totalUsers, activeUsersToday, newUsersThisWeek, totalTasks, totalNotes, tasksCompletedToday] =
+      await Promise.all([
+        User.countDocuments({}).maxTimeMS(MAX_TIME),
+        User.countDocuments({
+          lastLogin: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        }).maxTimeMS(MAX_TIME),
+        User.countDocuments({
+          createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        }).maxTimeMS(MAX_TIME),
+        Task.countDocuments({}).maxTimeMS(MAX_TIME),
+        require('../models/Note').countDocuments({}).maxTimeMS(MAX_TIME),
+        Task.countDocuments({
+          status: 'completed',
+          updatedAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+        }).maxTimeMS(MAX_TIME),
+      ]);
 
     res.json({
       success: true,

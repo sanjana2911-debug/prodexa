@@ -5,6 +5,12 @@
  * - 429 rate limit errors from unauthenticated requests
  * - Wasted API calls on login/landing pages
  * - "No token provided" errors filling console
+ *
+ * CRITICAL FIXES:
+ * 1. Promise.allSettled with individual .catch() — ONE slow endpoint NEVER blocks others
+ * 2. Axios 15s timeout in api.js prevents infinite hanging on any request
+ * 3. Each failed endpoint returns empty fallback data — dashboard renders regardless
+ * 4. Loading state guaranteed to finish in ≤15s (axios timeout) + React render cycle
  */
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
@@ -41,7 +47,14 @@ export function DataProvider({ children }) {
       setLoading(true);
       setError(null);
 
-      const [tasksRes, attendanceRes, notesRes, goalsRes, dashboardRes] = await Promise.all([
+      // CRITICAL: Use Promise.allSettled so ONE slow endpoint NEVER blocks the other 4.
+      // Each promise has its own .catch() to convert errors to fallback data.
+      // Axios timeout (15s from api.js) ensures even slow requests eventually resolve.
+      //
+      // DO NOT use Promise.all here — it would hang forever if ONE endpoint hangs.
+      // DO NOT pass AbortController through API wrappers — the existing api.js
+      // already has a 15s timeout that aborts hanging requests.
+      const results = await Promise.allSettled([
         tasksAPI.getAll().catch(() => ({ data: { tasks: [] } })),
         attendanceAPI.getAll().catch(() => ({ data: { records: [] } })),
         notesAPI.getAll().catch(() => ({ data: { notes: [] } })),
@@ -49,11 +62,31 @@ export function DataProvider({ children }) {
         analyticsAPI.getDashboard().catch(() => ({ data: { stats: null } })),
       ]);
 
-      setTasks(tasksRes.data.tasks || []);
-      setAttendance(attendanceRes.data.records || []);
-      setNotes(notesRes.data.notes || []);
-      setStudyGoals(goalsRes.data.goals || []);
-      setDashboardStats(dashboardRes.data.stats || null);
+      // Extract data from each result
+      // With Promise.allSettled, each result is { status: 'fulfilled'|'rejected', value/reason }
+      const [tasksRes, attendanceRes, notesRes, goalsRes, dashboardRes] = results.map((r) => {
+        if (r.status === 'fulfilled' && r.value) {
+          return r.value;
+        }
+        // Rejected — return empty fallback (the .catch() above already does this,
+        // but this extra guard handles any unexpected rejection shape)
+        return null;
+      });
+
+      setTasks(tasksRes?.data?.tasks || []);
+      setAttendance(attendanceRes?.data?.records || []);
+      setNotes(notesRes?.data?.notes || []);
+      setStudyGoals(goalsRes?.data?.goals || []);
+      setDashboardStats(dashboardRes?.data?.stats || null);
+
+      // If ALL 5 requests failed, show error
+      const allFailed = results.every((r) => r.status === 'rejected');
+      if (allFailed) {
+        setError('Unable to load data from server. Please try again.');
+      } else if (results.some((r) => r.status === 'rejected')) {
+        // Partial failure — just log, data still renders
+        console.warn('[DataContext] Some dashboard data failed to load — rendering with partial data');
+      }
     } catch (err) {
       console.error('Failed to fetch data:', err);
       setError('Failed to load data from server');

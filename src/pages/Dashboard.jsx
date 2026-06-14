@@ -62,10 +62,14 @@ export default function Dashboard() {
   ];
 
   // Upcoming tasks (due soon, not completed)
-  const upcomingTasks = (dashboardStats?.stats?.upcomingTasks || tasks)
-    .filter(t => t.status !== 'completed')
-    .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
-    .slice(0, 4);
+  // If dashboardStats is null (API failed/timed out), fall back to local tasks
+  const upcomingSource = dashboardStats?.stats?.upcomingTasks || tasks;
+  const upcomingTasks = Array.isArray(upcomingSource)
+    ? upcomingSource
+        .filter(t => t.status !== 'completed')
+        .sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))
+        .slice(0, 4)
+    : [];
 
   return (
     <div className="space-y-6">
